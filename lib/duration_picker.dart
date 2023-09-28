@@ -1,3 +1,5 @@
+// This is a clone of https://pub.dev/packages/duration_picker with some minor modifications
+
 library duration_picker;
 
 import 'dart:async';
@@ -32,6 +34,7 @@ class DialPainter extends CustomPainter {
     required this.baseUnitMultiplier,
     required this.baseUnitHand,
     required this.baseUnit,
+    this.postfixBaseUnitLabel = false,
   });
 
   final List<TextPainter> labels;
@@ -46,6 +49,7 @@ class DialPainter extends CustomPainter {
   final int baseUnitMultiplier;
   final int baseUnitHand;
   final BaseUnit baseUnit;
+  final bool postfixBaseUnitLabel;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -120,8 +124,10 @@ class DialPainter extends CustomPainter {
     // Draw the Text in the center of the circle which displays the duration string
     final secondaryUnits = (baseUnitMultiplier == 0)
         ? ''
-        : '$baseUnitMultiplier${getSecondaryUnitString()} ';
-    final baseUnits = '$baseUnitHand';
+        : '$baseUnitMultiplier${postfixBaseUnitLabel ? getSecondaryUnitString().trim() : getSecondaryUnitString()} ';
+    final baseUnits = (secondaryUnits.isNotEmpty && baseUnitHand == 0)
+        ? ''
+        : '$baseUnitHand${postfixBaseUnitLabel ? getBaseUnitString().substring(0, 1) : ''}';
 
     final textDurationValuePainter = TextPainter(
       textAlign: TextAlign.center,
@@ -130,7 +136,7 @@ class DialPainter extends CustomPainter {
         style: Theme.of(context)
             .textTheme
             .headline2!
-            .copyWith(fontSize: size.shortestSide * 0.15),
+            .copyWith(fontSize: size.shortestSide * 0.12),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -143,7 +149,7 @@ class DialPainter extends CustomPainter {
     final textMinPainter = TextPainter(
       textAlign: TextAlign.center,
       text: TextSpan(
-        text: getBaseUnitString(), //th: ${theta}',
+        text: postfixBaseUnitLabel ? '' : getBaseUnitString(), //th: ${theta}',
         style: Theme.of(context).textTheme.bodyText2,
       ),
       textDirection: TextDirection.ltr,
@@ -207,16 +213,19 @@ class DialPainter extends CustomPainter {
 }
 
 class _Dial extends StatefulWidget {
-  const _Dial({
-    required this.duration,
-    required this.onChanged,
-    this.baseUnit = BaseUnit.minute,
-    this.snapToMins = 1.0,
-  });
+  const _Dial(
+      {required this.duration,
+      required this.onChanged,
+      this.maxDuration,
+      this.baseUnit = BaseUnit.minute,
+      this.snapToMins = 1.0,
+      this.postfixBaseUnitLabel = false});
 
   final Duration duration;
+  final Duration? maxDuration;
   final ValueChanged<Duration> onChanged;
   final BaseUnit baseUnit;
+  final bool postfixBaseUnitLabel;
 
   /// The resolution of mins of the dial, i.e. if snapToMins = 5.0, only durations of 5min intervals will be selectable.
   final double? snapToMins;
@@ -387,7 +396,10 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
   Duration _notifyOnChangedIfNeeded() {
     _secondaryUnitValue = _secondaryUnitHand();
     _baseUnitValue = _baseUnitHand();
-    final d = _angleToDuration(_turningAngle);
+    var d = _angleToDuration(_turningAngle);
+    if (widget.maxDuration != null && d > widget.maxDuration!) {
+      d = widget.maxDuration!;
+    }
     widget.onChanged(d);
 
     return d;
@@ -425,14 +437,18 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
   }
 
   void _handlePanUpdate(DragUpdateDetails details) {
-    final oldTheta = _theta.value;
-    _position = _position! + details.delta;
-    // _position! += details.delta;
-    _updateThetaForPan();
-    final newTheta = _theta.value;
+    if (_position! > (_position! + details.delta) ||
+        widget.maxDuration == null ||
+        widget.duration < widget.maxDuration!) {
+      final oldTheta = _theta.value;
+      _position = _position! + details.delta;
+      // _position! += details.delta;
+      _updateThetaForPan();
+      var newTheta = _theta.value;
 
-    _updateTurningAngle(oldTheta, newTheta);
-    _notifyOnChangedIfNeeded();
+      _updateTurningAngle(oldTheta, newTheta);
+      _notifyOnChangedIfNeeded();
+    }
   }
 
   int _secondaryUnitHand() {
@@ -524,7 +540,11 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
     _dragging = false;
     _position = null;
     _center = null;
-    _animateTo(_getThetaForDuration(widget.duration, widget.baseUnit));
+    _animateTo(_getThetaForDuration(
+        (widget.maxDuration == null || widget.duration < widget.maxDuration!)
+            ? widget.duration
+            : widget.maxDuration!,
+        widget.baseUnit));
   }
 
   void _handleTapUp(TapUpDetails details) {
@@ -534,8 +554,13 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
     _updateThetaForPan();
     _notifyOnChangedIfNeeded();
 
+    var time = _getTimeForTheta(_theta.value);
+    if (widget.maxDuration != null && time > widget.maxDuration!) {
+      time = widget.maxDuration!;
+    }
+
     _animateTo(
-      _getThetaForDuration(_getTimeForTheta(_theta.value), widget.baseUnit),
+      _getThetaForDuration(time, widget.baseUnit),
     );
     _dragging = false;
     _position = null;
@@ -615,6 +640,9 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
 
     return GestureDetector(
       excludeFromSemantics: true,
+      onVerticalDragStart: _handlePanStart,
+      onVerticalDragUpdate: _handlePanUpdate,
+      onVerticalDragEnd: _handlePanEnd,
       onPanStart: _handlePanStart,
       onPanUpdate: _handlePanUpdate,
       onPanEnd: _handlePanEnd,
@@ -632,6 +660,7 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
           accentColor: themeData.colorScheme.secondary,
           theta: _theta.value,
           textDirection: Directionality.of(context),
+          postfixBaseUnitLabel: widget.postfixBaseUnitLabel,
         ),
       ),
     );
@@ -831,21 +860,25 @@ Future<Duration?> showDurationPicker({
 /// The [DurationPicker] widget.
 class DurationPicker extends StatelessWidget {
   final Duration duration;
+  final Duration? maxDuration;
   final ValueChanged<Duration> onChange;
   final BaseUnit baseUnit;
   final double? snapToMins;
 
   final double? width;
   final double? height;
+  final bool postfixBaseUnitLabel;
 
   const DurationPicker({
     Key? key,
     this.duration = Duration.zero,
+    this.maxDuration,
     required this.onChange,
     this.baseUnit = BaseUnit.minute,
     this.snapToMins,
     this.width,
     this.height,
+    this.postfixBaseUnitLabel = false,
   }) : super(key: key);
 
   @override
@@ -860,9 +893,11 @@ class DurationPicker extends StatelessWidget {
           Expanded(
             child: _Dial(
               duration: duration,
+              maxDuration: maxDuration,
               onChanged: onChange,
               baseUnit: baseUnit,
               snapToMins: snapToMins,
+              postfixBaseUnitLabel: postfixBaseUnitLabel,
             ),
           ),
         ],
