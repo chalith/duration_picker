@@ -35,6 +35,7 @@ class DialPainter extends CustomPainter {
     required this.baseUnitHand,
     required this.baseUnit,
     this.postfixBaseUnitLabel = false,
+    this.handleRadius = 20.0
   });
 
   final List<TextPainter> labels;
@@ -50,6 +51,7 @@ class DialPainter extends CustomPainter {
   final int baseUnitHand;
   final BaseUnit baseUnit;
   final bool postfixBaseUnitLabel;
+  final double handleRadius;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -90,8 +92,8 @@ class DialPainter extends CustomPainter {
 
     // Draw the handle that is used to drag and to indicate the position around the circle
     final handlePaint = Paint()..color = accentColor;
-    final handlePoint = getOffsetForTheta(theta, radius - 10.0);
-    canvas.drawCircle(handlePoint, 20.0, handlePaint);
+    final handlePoint = getOffsetForTheta(theta, radius - handleRadius / 2);
+    canvas.drawCircle(handlePoint, handleRadius, handlePaint);
 
     // Get the appropriate base unit string
     String getBaseUnitString() {
@@ -193,7 +195,7 @@ class DialPainter extends CustomPainter {
 
         label.paint(
           canvas,
-          getOffsetForTheta(labelTheta, radius - 40.0) + labelOffset,
+          getOffsetForTheta(labelTheta, radius - handleRadius * 2.12) + labelOffset,
         );
 
         labelTheta += labelThetaIncrement;
@@ -219,13 +221,15 @@ class _Dial extends StatefulWidget {
       this.maxDuration,
       this.baseUnit = BaseUnit.minute,
       this.snapToMins = 1.0,
-      this.postfixBaseUnitLabel = false});
+      this.postfixBaseUnitLabel = false,
+      this.handleRadius = 20.0});
 
   final Duration duration;
   final Duration? maxDuration;
   final ValueChanged<Duration> onChanged;
   final BaseUnit baseUnit;
   final bool postfixBaseUnitLabel;
+  final double handleRadius;
 
   /// The resolution of mins of the dial, i.e. if snapToMins = 5.0, only durations of 5min intervals will be selectable.
   final double? snapToMins;
@@ -640,9 +644,9 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
 
     return GestureDetector(
       excludeFromSemantics: true,
-      onVerticalDragStart: _handlePanStart,
-      onVerticalDragUpdate: _handlePanUpdate,
-      onVerticalDragEnd: _handlePanEnd,
+      // onVerticalDragStart: _handlePanStart,
+      // onVerticalDragUpdate: _handlePanUpdate,
+      // onVerticalDragEnd: _handlePanEnd,
       onPanStart: _handlePanStart,
       onPanUpdate: _handlePanUpdate,
       onPanEnd: _handlePanEnd,
@@ -661,6 +665,7 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
           theta: _theta.value,
           textDirection: Directionality.of(context),
           postfixBaseUnitLabel: widget.postfixBaseUnitLabel,
+          handleRadius: widget.handleRadius
         ),
       ),
     );
@@ -868,6 +873,7 @@ class DurationPicker extends StatelessWidget {
   final double? width;
   final double? height;
   final bool postfixBaseUnitLabel;
+  final double handleRadius;
 
   const DurationPicker({
     Key? key,
@@ -879,6 +885,7 @@ class DurationPicker extends StatelessWidget {
     this.width,
     this.height,
     this.postfixBaseUnitLabel = false,
+    this.handleRadius = 20.0,
   }) : super(key: key);
 
   @override
@@ -898,6 +905,7 @@ class DurationPicker extends StatelessWidget {
               baseUnit: baseUnit,
               snapToMins: snapToMins,
               postfixBaseUnitLabel: postfixBaseUnitLabel,
+              handleRadius: handleRadius,
             ),
           ),
         ],
