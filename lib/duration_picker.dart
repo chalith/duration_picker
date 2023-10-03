@@ -22,21 +22,20 @@ const double _kCircleTop = _kPiByTwo;
 
 /// Use [DialPainter] to style the durationPicker to your style.
 class DialPainter extends CustomPainter {
-  const DialPainter({
-    required this.context,
-    required this.labels,
-    required this.backgroundColor,
-    required this.accentColor,
-    required this.theta,
-    required this.textDirection,
-    required this.selectedValue,
-    required this.pct,
-    required this.baseUnitMultiplier,
-    required this.baseUnitHand,
-    required this.baseUnit,
-    this.postfixBaseUnitLabel = false,
-    this.handleRadius = 20.0
-  });
+  const DialPainter(
+      {required this.context,
+      required this.labels,
+      required this.backgroundColor,
+      required this.accentColor,
+      required this.theta,
+      required this.textDirection,
+      required this.selectedValue,
+      required this.pct,
+      required this.baseUnitMultiplier,
+      required this.baseUnitHand,
+      required this.baseUnit,
+      this.postfixBaseUnitLabel = false,
+      this.handleRadius = 20.0});
 
   final List<TextPainter> labels;
   final Color? backgroundColor;
@@ -195,7 +194,8 @@ class DialPainter extends CustomPainter {
 
         label.paint(
           canvas,
-          getOffsetForTheta(labelTheta, radius - handleRadius * 2.12) + labelOffset,
+          getOffsetForTheta(labelTheta, radius - handleRadius * 2.12) +
+              labelOffset,
         );
 
         labelTheta += labelThetaIncrement;
@@ -441,7 +441,42 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
   }
 
   void _handlePanUpdate(DragUpdateDetails details) {
-    if (_position! > (_position! + details.delta) ||
+    final newOffset = _position! + details.delta - _center!;
+    final newDuration = _angleToDuration(
+        (math.atan2(newOffset.dx, newOffset.dy) - _kPiByTwo) % _kTwoPi);
+    bool allowChange = false;
+    switch (widget.baseUnit) {
+      case BaseUnit.millisecond:
+        final oldBaseUnit = widget.duration.inMilliseconds % 1000;
+        final newBaseUnit = newDuration.inMilliseconds % 1000;
+        allowChange = oldBaseUnit == 0
+            ? (newBaseUnit <= 999 && newBaseUnit >= 500)
+            : newBaseUnit < oldBaseUnit;
+        break;
+      case BaseUnit.second:
+        final oldBaseUnit = widget.duration.inSeconds % 60;
+        final newBaseUnit = newDuration.inSeconds % 60;
+        allowChange = oldBaseUnit == 0
+            ? (newBaseUnit <= 59 && newBaseUnit >= 30)
+            : newBaseUnit < oldBaseUnit;
+        break;
+      case BaseUnit.minute:
+        final oldBaseUnit = widget.duration.inMinutes % 60;
+        final newBaseUnit = newDuration.inMinutes % 60;
+        allowChange = oldBaseUnit == 0
+            ? (newBaseUnit <= 59 && newBaseUnit >= 30)
+            : newBaseUnit < oldBaseUnit;
+        break;
+      case BaseUnit.hour:
+        final oldBaseUnit = widget.duration.inHours % 24;
+        final newBaseUnit = newDuration.inHours % 24;
+        allowChange = oldBaseUnit == 0
+            ? (newBaseUnit <= 23 && newBaseUnit >= 12)
+            : newBaseUnit < oldBaseUnit;
+        break;
+    }
+
+    if (allowChange ||
         widget.maxDuration == null ||
         widget.duration < widget.maxDuration!) {
       final oldTheta = _theta.value;
@@ -653,20 +688,19 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
       onTapUp: _handleTapUp,
       child: CustomPaint(
         painter: DialPainter(
-          pct: _pct,
-          baseUnitMultiplier: _secondaryUnitValue,
-          baseUnitHand: _baseUnitValue,
-          baseUnit: widget.baseUnit,
-          context: context,
-          selectedValue: selectedDialValue,
-          labels: _buildBaseUnitLabels(theme.textTheme),
-          backgroundColor: backgroundColor,
-          accentColor: themeData.colorScheme.secondary,
-          theta: _theta.value,
-          textDirection: Directionality.of(context),
-          postfixBaseUnitLabel: widget.postfixBaseUnitLabel,
-          handleRadius: widget.handleRadius
-        ),
+            pct: _pct,
+            baseUnitMultiplier: _secondaryUnitValue,
+            baseUnitHand: _baseUnitValue,
+            baseUnit: widget.baseUnit,
+            context: context,
+            selectedValue: selectedDialValue,
+            labels: _buildBaseUnitLabels(theme.textTheme),
+            backgroundColor: backgroundColor,
+            accentColor: themeData.colorScheme.secondary,
+            theta: _theta.value,
+            textDirection: Directionality.of(context),
+            postfixBaseUnitLabel: widget.postfixBaseUnitLabel,
+            handleRadius: widget.handleRadius),
       ),
     );
   }
